@@ -16,9 +16,15 @@ type SensorData struct {
 }
 
 type CreateSensorDataRequest struct {
-	Temperature     float64  `json:"temperature" binding:"required,min=0,max=40"`
-	LightWattage    int      `json:"light_wattage" binding:"required,min=0,max=1000"`
-	DissolvedOxygen *float64 `json:"dissolved_oxygen" binding:"omitempty,min=0,max=20"`
+	Temperature     interface{} `json:"temperature" binding:"required"`
+	LightWattage    interface{} `json:"light_wattage" binding:"required"`
+	DissolvedOxygen interface{} `json:"dissolved_oxygen"`
+}
+
+type createSensorDataDTO struct {
+	Temperature     float64
+	LightWattage    int
+	DissolvedOxygen *float64
 }
 
 func (SensorData) TableName() string {

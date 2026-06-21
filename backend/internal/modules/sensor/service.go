@@ -18,7 +18,17 @@ func NewSensorService() *SensorService {
 	}
 }
 
-func (s *SensorService) CreateData(req *CreateSensorDataRequest) (*SensorData, error) {
+func (s *SensorService) CreateData(req *createSensorDataDTO) (*SensorData, error) {
+	if req.Temperature < 0 || req.Temperature > 40 {
+		return nil, fmt.Errorf("temperature must be between 0 and 40")
+	}
+	if req.LightWattage < 0 || req.LightWattage > 1000 {
+		return nil, fmt.Errorf("light_wattage must be between 0 and 1000")
+	}
+	if req.DissolvedOxygen != nil && (*req.DissolvedOxygen < 0 || *req.DissolvedOxygen > 20) {
+		return nil, fmt.Errorf("dissolved_oxygen must be between 0 and 20")
+	}
+
 	data := &SensorData{
 		Temperature:     req.Temperature,
 		LightWattage:    req.LightWattage,

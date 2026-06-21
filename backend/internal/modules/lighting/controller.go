@@ -1,6 +1,7 @@
 package lighting
 
 import (
+	"errors"
 	"strconv"
 
 	"aquarium-control/internal/common"
@@ -18,6 +19,44 @@ func NewLightController() *LightController {
 	}
 }
 
+func parseBrightness(val interface{}) (int, error) {
+	switch v := val.(type) {
+	case float64:
+		return int(v), nil
+	case int:
+		return v, nil
+	case string:
+		if result, ok := common.ParseBrightness(v); ok {
+			return result, nil
+		}
+		if num, err := strconv.Atoi(v); err == nil {
+			return num, nil
+		}
+		return 0, errors.New("invalid brightness value: " + v)
+	default:
+		return 0, errors.New("invalid brightness type")
+	}
+}
+
+func parseEnabled(val interface{}) (bool, bool, error) {
+	if val == nil {
+		return false, false, nil
+	}
+	switch v := val.(type) {
+	case bool:
+		return v, true, nil
+	case string:
+		if result, ok := common.ParseStatus(v); ok {
+			return result, true, nil
+		}
+		return false, false, errors.New("invalid enabled value: " + v)
+	case float64:
+		return v != 0, true, nil
+	default:
+		return false, false, errors.New("invalid enabled type")
+	}
+}
+
 func (c *LightController) CreateSchedule(ctx *gin.Context) {
 	var req CreateScheduleRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -25,7 +64,41 @@ func (c *LightController) CreateSchedule(ctx *gin.Context) {
 		return
 	}
 
-	schedule, err := c.service.CreateSchedule(&req)
+	brightness, err := parseBrightness(req.Brightness)
+	if err != nil {
+		common.BadRequest(ctx, err.Error())
+		return
+	}
+
+	enabled, hasEnabled, err := parseEnabled(req.Enabled)
+	if err != nil {
+		common.BadRequest(ctx, err.Error())
+		return
+	}
+
+	if req.TimeRange != "" {
+		start, end, ok := common.ParseTimeRange(req.TimeRange)
+		if ok {
+			req.StartTime = start
+			req.EndTime = end
+		}
+	}
+
+	if req.StartTime == "" || req.EndTime == "" {
+		common.BadRequest(ctx, "start_time and end_time are required, or use time_range")
+		return
+	}
+
+	convertedReq := &createScheduleDTO{
+		Name:       req.Name,
+		StartTime:  req.StartTime,
+		EndTime:    req.EndTime,
+		Brightness: brightness,
+		Enabled:    enabled,
+		HasEnabled: hasEnabled,
+	}
+
+	schedule, err := c.service.CreateSchedule(convertedReq)
 	if err != nil {
 		common.BadRequest(ctx, err.Error())
 		return
@@ -73,7 +146,43 @@ func (c *LightController) UpdateSchedule(ctx *gin.Context) {
 		return
 	}
 
-	schedule, err := c.service.UpdateSchedule(id, &req)
+	convertedReq := &updateScheduleDTO{
+		Name:      req.Name,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+	}
+
+	if req.TimeRange != "" {
+		start, end, ok := common.ParseTimeRange(req.TimeRange)
+		if ok {
+			convertedReq.StartTime = start
+			convertedReq.EndTime = end
+		}
+	}
+
+	if req.Brightness != nil {
+		brightness, err := parseBrightness(req.Brightness)
+		if err != nil {
+			common.BadRequest(ctx, err.Error())
+			return
+		}
+		convertedReq.Brightness = &brightness
+		convertedReq.HasBrightness = true
+	}
+
+	if req.Enabled != nil {
+		enabled, hasEnabled, err := parseEnabled(req.Enabled)
+		if err != nil {
+			common.BadRequest(ctx, err.Error())
+			return
+		}
+		if hasEnabled {
+			convertedReq.Enabled = &enabled
+			convertedReq.HasEnabled = true
+		}
+	}
+
+	schedule, err := c.service.UpdateSchedule(id, convertedReq)
 	if err != nil {
 		common.BadRequest(ctx, err.Error())
 		return

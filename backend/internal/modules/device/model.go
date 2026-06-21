@@ -18,15 +18,15 @@ type DeviceStatus struct {
 }
 
 type ToggleDeviceRequest struct {
-	Status *bool `json:"status" binding:"required"`
+	Status interface{} `json:"status" binding:"required"`
 }
 
 type UpdateValueRequest struct {
-	CurrentValue *int `json:"current_value" binding:"required"`
+	CurrentValue interface{} `json:"current_value" binding:"required"`
 }
 
 type SetManualModeRequest struct {
-	ManualMode *bool `json:"manual_mode" binding:"required"`
+	ManualMode interface{} `json:"manual_mode" binding:"required"`
 }
 
 func (DeviceStatus) TableName() string {

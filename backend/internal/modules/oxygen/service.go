@@ -19,7 +19,23 @@ func NewOxygenService() *OxygenService {
 	}
 }
 
-func (s *OxygenService) CreateConfig(req *CreateConfigRequest) (*OxygenConfig, error) {
+func (s *OxygenService) CreateConfig(req *createConfigDTO) (*OxygenConfig, error) {
+	if req.MinLightWattage < 0 {
+		return nil, errors.New("min_light_wattage must be >= 0")
+	}
+	if req.MaxLightWattage < req.MinLightWattage {
+		return nil, errors.New("max_light_wattage must be >= min_light_wattage")
+	}
+	if req.MinTemperature < 0 || req.MinTemperature > 40 {
+		return nil, errors.New("min_temperature must be between 0 and 40")
+	}
+	if req.MaxTemperature < req.MinTemperature || req.MaxTemperature > 40 {
+		return nil, errors.New("max_temperature must be >= min_temperature and <= 40")
+	}
+	if req.PumpLevel < 1 || req.PumpLevel > 5 {
+		return nil, errors.New("pump_level must be between 1 and 5")
+	}
+
 	config := &OxygenConfig{
 		MinLightWattage: req.MinLightWattage,
 		MaxLightWattage: req.MaxLightWattage,
@@ -55,25 +71,40 @@ func (s *OxygenService) ListConfigs() ([]OxygenConfig, error) {
 	return configs, nil
 }
 
-func (s *OxygenService) UpdateConfig(id uint64, req *UpdateConfigRequest) (*OxygenConfig, error) {
+func (s *OxygenService) UpdateConfig(id uint64, req *updateConfigDTO) (*OxygenConfig, error) {
 	config, err := s.GetConfigByID(id)
 	if err != nil {
 		return nil, err
 	}
 
 	if req.MinLightWattage != nil {
+		if *req.MinLightWattage < 0 {
+			return nil, errors.New("min_light_wattage must be >= 0")
+		}
 		config.MinLightWattage = *req.MinLightWattage
 	}
 	if req.MaxLightWattage != nil {
+		if *req.MaxLightWattage < 0 {
+			return nil, errors.New("max_light_wattage must be >= 0")
+		}
 		config.MaxLightWattage = *req.MaxLightWattage
 	}
 	if req.MinTemperature != nil {
+		if *req.MinTemperature < 0 || *req.MinTemperature > 40 {
+			return nil, errors.New("min_temperature must be between 0 and 40")
+		}
 		config.MinTemperature = *req.MinTemperature
 	}
 	if req.MaxTemperature != nil {
+		if *req.MaxTemperature < 0 || *req.MaxTemperature > 40 {
+			return nil, errors.New("max_temperature must be between 0 and 40")
+		}
 		config.MaxTemperature = *req.MaxTemperature
 	}
 	if req.PumpLevel != nil {
+		if *req.PumpLevel < 1 || *req.PumpLevel > 5 {
+			return nil, errors.New("pump_level must be between 1 and 5")
+		}
 		config.PumpLevel = *req.PumpLevel
 	}
 	if req.Description != nil {
@@ -105,7 +136,17 @@ func (s *OxygenService) DeleteConfig(id uint64) error {
 	return nil
 }
 
-func (s *OxygenService) CalculateMatch(lightWattage int, temperature float64) (*MatchResult, error) {
+func (s *OxygenService) CalculateMatch(req *matchRequestDTO) (*MatchResult, error) {
+	lightWattage := req.LightWattage
+	temperature := req.Temperature
+
+	if lightWattage < 0 {
+		return nil, errors.New("light_wattage must be >= 0")
+	}
+	if temperature < 0 || temperature > 40 {
+		return nil, errors.New("temperature must be between 0 and 40")
+	}
+
 	var configs []OxygenConfig
 	if err := s.db.Find(&configs).Error; err != nil {
 		return nil, err

@@ -1,8 +1,10 @@
 package sensor
 
 import (
-	"aquarium-control/internal/common"
+	"errors"
 	"strconv"
+
+	"aquarium-control/internal/common"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +19,38 @@ func NewSensorController() *SensorController {
 	}
 }
 
+func parseFloat(val interface{}) (float64, error) {
+	switch v := val.(type) {
+	case float64:
+		return v, nil
+	case int:
+		return float64(v), nil
+	case string:
+		if num, err := strconv.ParseFloat(v, 64); err == nil {
+			return num, nil
+		}
+		return 0, errors.New("invalid float value: " + v)
+	default:
+		return 0, errors.New("invalid float type")
+	}
+}
+
+func parseInt(val interface{}) (int, error) {
+	switch v := val.(type) {
+	case float64:
+		return int(v), nil
+	case int:
+		return v, nil
+	case string:
+		if num, err := strconv.Atoi(v); err == nil {
+			return num, nil
+		}
+		return 0, errors.New("invalid integer value: " + v)
+	default:
+		return 0, errors.New("invalid integer type")
+	}
+}
+
 func (c *SensorController) CreateData(ctx *gin.Context) {
 	var req CreateSensorDataRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -24,7 +58,35 @@ func (c *SensorController) CreateData(ctx *gin.Context) {
 		return
 	}
 
-	data, err := c.service.CreateData(&req)
+	temperature, err := parseFloat(req.Temperature)
+	if err != nil {
+		common.BadRequest(ctx, "temperature: "+err.Error())
+		return
+	}
+
+	lightWattage, err := parseInt(req.LightWattage)
+	if err != nil {
+		common.BadRequest(ctx, "light_wattage: "+err.Error())
+		return
+	}
+
+	var dissolvedOxygen *float64
+	if req.DissolvedOxygen != nil {
+		do, err := parseFloat(req.DissolvedOxygen)
+		if err != nil {
+			common.BadRequest(ctx, "dissolved_oxygen: "+err.Error())
+			return
+		}
+		dissolvedOxygen = &do
+	}
+
+	convertedReq := &createSensorDataDTO{
+		Temperature:     temperature,
+		LightWattage:    lightWattage,
+		DissolvedOxygen: dissolvedOxygen,
+	}
+
+	data, err := c.service.CreateData(convertedReq)
 	if err != nil {
 		common.InternalError(ctx, err.Error())
 		return

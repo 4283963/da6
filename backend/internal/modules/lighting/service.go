@@ -20,7 +20,7 @@ func NewLightService() *LightService {
 	}
 }
 
-func (s *LightService) CreateSchedule(req *CreateScheduleRequest) (*LightSchedule, error) {
+func (s *LightService) CreateSchedule(req *createScheduleDTO) (*LightSchedule, error) {
 	if !isValidTimeFormat(req.StartTime) || !isValidTimeFormat(req.EndTime) {
 		return nil, errors.New("invalid time format, use HH:MM:SS")
 	}
@@ -29,12 +29,17 @@ func (s *LightService) CreateSchedule(req *CreateScheduleRequest) (*LightSchedul
 		return nil, errors.New("start time must be before end time")
 	}
 
+	enabled := true
+	if req.HasEnabled {
+		enabled = req.Enabled
+	}
+
 	schedule := &LightSchedule{
 		Name:       req.Name,
 		StartTime:  req.StartTime,
 		EndTime:    req.EndTime,
 		Brightness: req.Brightness,
-		Enabled:    req.Enabled,
+		Enabled:    enabled,
 	}
 
 	if err := s.db.Create(schedule).Error; err != nil {
@@ -63,7 +68,7 @@ func (s *LightService) ListSchedules() ([]LightSchedule, error) {
 	return schedules, nil
 }
 
-func (s *LightService) UpdateSchedule(id uint64, req *UpdateScheduleRequest) (*LightSchedule, error) {
+func (s *LightService) UpdateSchedule(id uint64, req *updateScheduleDTO) (*LightSchedule, error) {
 	schedule, err := s.GetScheduleByID(id)
 	if err != nil {
 		return nil, err
@@ -84,10 +89,10 @@ func (s *LightService) UpdateSchedule(id uint64, req *UpdateScheduleRequest) (*L
 		}
 		schedule.EndTime = req.EndTime
 	}
-	if req.Brightness != nil {
+	if req.HasBrightness {
 		schedule.Brightness = *req.Brightness
 	}
-	if req.Enabled != nil {
+	if req.HasEnabled {
 		schedule.Enabled = *req.Enabled
 	}
 

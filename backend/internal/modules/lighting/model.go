@@ -19,19 +19,40 @@ type LightSchedule struct {
 }
 
 type CreateScheduleRequest struct {
-	Name       string `json:"name" binding:"required,max=100"`
-	StartTime  string `json:"start_time" binding:"required"`
-	EndTime    string `json:"end_time" binding:"required"`
-	Brightness int    `json:"brightness" binding:"required,min=0,max=100"`
-	Enabled    bool   `json:"enabled"`
+	Name       string      `json:"name" binding:"required,max=100"`
+	StartTime  string      `json:"start_time"`
+	EndTime    string      `json:"end_time"`
+	TimeRange  string      `json:"time_range"`
+	Brightness interface{} `json:"brightness" binding:"required"`
+	Enabled    interface{} `json:"enabled"`
 }
 
 type UpdateScheduleRequest struct {
-	Name       string `json:"name" binding:"omitempty,max=100"`
-	StartTime  string `json:"start_time" binding:"omitempty"`
-	EndTime    string `json:"end_time" binding:"omitempty"`
-	Brightness *int   `json:"brightness" binding:"omitempty,min=0,max=100"`
-	Enabled    *bool  `json:"enabled"`
+	Name       string      `json:"name" binding:"omitempty,max=100"`
+	StartTime  string      `json:"start_time"`
+	EndTime    string      `json:"end_time"`
+	TimeRange  string      `json:"time_range"`
+	Brightness interface{} `json:"brightness"`
+	Enabled    interface{} `json:"enabled"`
+}
+
+type createScheduleDTO struct {
+	Name       string
+	StartTime  string
+	EndTime    string
+	Brightness int
+	Enabled    bool
+	HasEnabled bool
+}
+
+type updateScheduleDTO struct {
+	Name         string
+	StartTime    string
+	EndTime      string
+	Brightness   *int
+	Enabled      *bool
+	HasBrightness bool
+	HasEnabled   bool
 }
 
 type CurrentLightStatus struct {
