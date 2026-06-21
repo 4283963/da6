@@ -3,7 +3,9 @@ package device
 import (
 	"errors"
 	"fmt"
+	"time"
 
+	"aquarium-control/internal/common"
 	"aquarium-control/internal/database"
 	"gorm.io/gorm"
 )
@@ -109,7 +111,34 @@ func (s *DeviceService) SetManualMode(deviceType, deviceName string, manualMode 
 	return device, nil
 }
 
+type LatestSensorTemp struct {
+	Temperature float64 `gorm:"column:temperature"`
+}
+
+func (s *DeviceService) getLatestTemperature() (float64, error) {
+	var data LatestSensorTemp
+	result := s.db.Table("sensor_data").Order("recorded_at DESC").Limit(1).Find(&data)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return 25.0, nil
+	}
+	return data.Temperature, nil
+}
+
 func (s *DeviceService) GetDashboardStatus() (map[string]interface{}, error) {
+	now := time.Now()
+
+	currentTemp, err := s.getLatestTemperature()
+	if err != nil {
+		currentTemp = 25.0
+	}
+
+	isNightMode := common.IsNightModeAt(now)
+	isTempSafe := common.IsTemperatureSafe(currentTemp)
+	powerSaving := isNightMode && isTempSafe
+
 	var lights, pumps []DeviceStatus
 
 	if err := s.db.Where("device_type = ?", "light").Find(&lights).Error; err != nil {
@@ -148,13 +177,17 @@ func (s *DeviceService) GetDashboardStatus() (map[string]interface{}, error) {
 	}
 
 	return map[string]interface{}{
-		"lights":           lights,
-		"pumps":            pumps,
-		"total_lights":     totalLights,
-		"lights_on":        lightsOn,
-		"avg_brightness":   avgBrightness,
-		"total_pumps":      len(pumps),
-		"pumps_on":         pumpsOn,
+		"lights":             lights,
+		"pumps":              pumps,
+		"total_lights":       totalLights,
+		"lights_on":          lightsOn,
+		"avg_brightness":     avgBrightness,
+		"total_pumps":        len(pumps),
+		"pumps_on":           pumpsOn,
 		"current_pump_level": currentPumpLevel,
+		"night_mode":         isNightMode,
+		"power_saving":       powerSaving,
+		"current_temp":       currentTemp,
+		"temp_safe":          isTempSafe,
 	}, nil
 }

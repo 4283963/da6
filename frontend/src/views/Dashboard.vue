@@ -1,5 +1,23 @@
 <template>
   <div class="page-container">
+    <div v-if="deviceStatus.power_saving" class="night-mode-bar glass-card moon-glow">
+      <div class="night-mode-content">
+        <div class="moon-icon-wrapper">
+          <el-icon class="moon-icon"><Moon /></el-icon>
+        </div>
+        <div class="night-info">
+          <div class="night-title">深夜省电模式已激活 🌙</div>
+          <div class="night-desc">
+            当前时间 00:00-05:00 · 水温 {{ deviceStatus.current_temp?.toFixed(1) }}°C 在安全范围(22-28°C)，
+            灯光和气泵功率自动减半运行
+          </div>
+        </div>
+        <el-tag type="warning" effect="dark" size="large" class="night-tag">
+          POWER SAVING
+        </el-tag>
+      </div>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-card glass-card" style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(59, 130, 246, 0.1);">
         <div class="stat-header">
@@ -19,25 +37,58 @@
         <div class="stat-sub">平均: {{ sensorStats.avg_light_wattage || 0 }}W</div>
       </div>
 
-      <div class="stat-card glass-card" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.1);">
+      <div class="stat-card glass-card" :class="{ 'power-saving-active': lightStatus.power_saving }"
+           :style="lightStatus.power_saving 
+             ? 'background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(168, 85, 247, 0.1);'
+             : 'background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.1);'">
         <div class="stat-header">
-          <el-icon class="stat-icon" style="color: #22c55e;"><Sunny /></el-icon>
+          <div class="stat-icon-wrap">
+            <el-icon class="stat-icon" :style="{ color: lightStatus.power_saving ? '#fbbf24' : '#22c55e' }">
+              <Sunny v-if="!lightStatus.power_saving" />
+              <Moon v-else />
+            </el-icon>
+          </div>
           <span class="stat-label">灯光状态</span>
+          <el-tag v-if="lightStatus.power_saving" size="small" type="warning" effect="dark" class="mini-moon-tag">
+            <el-icon><Moon /></el-icon>
+            省电
+          </el-tag>
         </div>
         <div class="stat-value">
-          <span v-if="lightStatus.is_on" style="color: #4ade80;">开启中</span>
+          <span v-if="lightStatus.is_on" :style="{ color: lightStatus.power_saving ? '#fbbf24' : '#4ade80' }">
+            {{ lightStatus.power_saving ? '省电运行中' : '开启中' }}
+          </span>
           <span v-else style="color: #6b7280;">已关闭</span>
         </div>
-        <div class="stat-sub">亮度: {{ lightStatus.brightness || 0 }}%</div>
+        <div class="stat-sub">
+          <span>亮度: {{ lightStatus.brightness || 0 }}%</span>
+          <span v-if="lightStatus.power_saving && lightStatus.original_brightness" class="saving-hint">
+             (原 {{ lightStatus.original_brightness }}% )
+          </span>
+        </div>
       </div>
 
-      <div class="stat-card glass-card" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.1);">
+      <div class="stat-card glass-card" :class="{ 'power-saving-active': deviceStatus.power_saving && deviceStatus.current_pump_level > 0 }"
+           :style="deviceStatus.power_saving && deviceStatus.current_pump_level > 0
+             ? 'background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(139, 92, 246, 0.15);'
+             : 'background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.1);'">
         <div class="stat-header">
-          <el-icon class="stat-icon" style="color: #8b5cf6;"><Wind /></el-icon>
+          <div class="stat-icon-wrap">
+            <el-icon class="stat-icon" :style="{ color: deviceStatus.power_saving ? '#fbbf24' : '#8b5cf6' }">
+              <Wind v-if="!deviceStatus.power_saving" />
+              <Moon v-else />
+            </el-icon>
+          </div>
           <span class="stat-label">气泵档位</span>
+          <el-tag v-if="deviceStatus.power_saving && deviceStatus.current_pump_level > 0" size="small" type="warning" effect="dark" class="mini-moon-tag">
+            <el-icon><Moon /></el-icon>
+            省电
+          </el-tag>
         </div>
         <div class="stat-value">
-          <span v-if="deviceStatus.current_pump_level > 0">{{ deviceStatus.current_pump_level }}档</span>
+          <span v-if="deviceStatus.current_pump_level > 0" :style="{ color: deviceStatus.power_saving ? '#fbbf24' : '#a78bfa' }">
+            {{ deviceStatus.power_saving ? '省电 ' : '' }}{{ deviceStatus.current_pump_level }}档
+          </span>
           <span v-else style="color: #6b7280;">关闭</span>
         </div>
         <div class="stat-sub">开启: {{ deviceStatus.pumps_on || 0 }}/{{ deviceStatus.total_pumps || 0 }}</div>
@@ -98,10 +149,24 @@
           <el-button type="primary" @click="calculateMatch" :loading="calculating" style="width: 100%;">
             计算气泵档位
           </el-button>
-          <div v-if="matchResult" class="match-result">
+          <div v-if="matchResult" class="match-result" :class="{ 'power-saving-result': matchResult.power_saving }">
             <div class="result-level">
-              <span class="level-label">推荐档位</span>
-              <span class="level-value">{{ matchResult.pump_level }}档</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="level-label">推荐档位</span>
+                <el-tag v-if="matchResult.power_saving" type="warning" effect="dark" size="small">
+                  <el-icon style="margin-right: 2px;"><Moon /></el-icon>
+                  深夜省电
+                </el-tag>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span v-if="matchResult.power_saving && matchResult.original_pump_level" 
+                      class="original-level" title="原始档位">
+                  <s>{{ matchResult.original_pump_level }}档</s>
+                </span>
+                <span class="level-value" :style="{ color: matchResult.power_saving ? '#fbbf24' : '#38bdf8' }">
+                  {{ matchResult.pump_level }}档
+                </span>
+              </div>
             </div>
             <div class="result-detail">
               <p><strong>匹配模式:</strong> {{ matchResult.description }}</p>
@@ -126,7 +191,8 @@
           设备状态概览
         </h2>
         <div class="device-grid">
-          <div v-for="device in allDevices" :key="device.id" class="device-card">
+          <div v-for="device in allDevices" :key="device.id" class="device-card"
+               :class="{ 'device-power-saving': deviceStatus.power_saving && device.status && !device.manual_mode }">
             <div class="device-header">
               <div class="device-info">
                 <span class="status-dot" :class="{ on: device.status, off: !device.status }"></span>
@@ -134,13 +200,24 @@
                 <el-tag size="small" :type="device.device_type === 'light' ? 'warning' : 'primary'">
                   {{ device.device_type === 'light' ? '灯光' : '气泵' }}
                 </el-tag>
+                <el-icon v-if="deviceStatus.power_saving && device.status && !device.manual_mode" 
+                         class="device-moon-icon" title="深夜省电模式">
+                  <Moon />
+                </el-icon>
               </div>
-              <el-tag size="small" :type="device.manual_mode ? 'danger' : 'success'">
-                {{ device.manual_mode ? '手动' : '自动' }}
-              </el-tag>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <el-tag size="small" :type="device.manual_mode ? 'danger' : 'success'">
+                  {{ device.manual_mode ? '手动' : '自动' }}
+                </el-tag>
+              </div>
             </div>
             <div class="device-status">
-              <span>状态: {{ device.status ? '开启' : '关闭' }}</span>
+              <span>
+                状态: {{ device.status ? '开启' : '关闭' }}
+                <span v-if="deviceStatus.power_saving && device.status && !device.manual_mode" class="saving-hint-inline">
+                  (省电模式)
+                </span>
+              </span>
               <span v-if="device.current_value !== null">
                 {{ device.device_type === 'light' ? '亮度' : '档位' }}: {{ device.current_value }}{{ device.device_type === 'light' ? '%' : '档' }}
               </span>
@@ -162,7 +239,7 @@ const chartRef = ref(null)
 let chartInstance = null
 let refreshTimer = null
 
-const lightStatus = ref({ is_on: false, brightness: 0 })
+const lightStatus = ref({ is_on: false, brightness: 0, night_mode: false, power_saving: false, original_brightness: 0 })
 const schedules = ref([])
 const sensorStats = ref({})
 const deviceStatus = ref({})
@@ -310,6 +387,153 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.night-mode-bar {
+  margin-bottom: 24px;
+  overflow: hidden;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.15), transparent 70%);
+    border-radius: 50%;
+  }
+}
+
+.moon-glow {
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.6), rgba(251, 191, 36, 0.1), rgba(168, 85, 247, 0.15)) !important;
+  border: 1px solid rgba(251, 191, 36, 0.3) !important;
+}
+
+.night-mode-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.moon-icon-wrapper {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(168, 85, 247, 0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: moonPulse 2s ease-in-out infinite;
+}
+
+.moon-icon {
+  font-size: 36px;
+  color: #fbbf24;
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+}
+
+@keyframes moonPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(251, 191, 36, 0.5);
+    transform: scale(1.05);
+  }
+}
+
+.night-info {
+  flex: 1;
+}
+
+.night-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.night-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.5;
+}
+
+.night-tag {
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+
+.mini-moon-tag {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  .el-icon {
+    font-size: 12px;
+  }
+}
+
+.stat-icon-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.saving-hint {
+  color: #fbbf24;
+  margin-left: 6px;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.saving-hint-inline {
+  color: #fbbf24;
+  font-size: 12px;
+}
+
+.power-saving-active {
+  border: 1px solid rgba(251, 191, 36, 0.35) !important;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.08), inset 0 0 30px rgba(251, 191, 36, 0.03);
+  transition: all 0.3s ease;
+}
+
+.original-level {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 18px;
+}
+
+.power-saving-result {
+  background: rgba(251, 191, 36, 0.08) !important;
+  border-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+.device-power-saving {
+  border-color: rgba(251, 191, 36, 0.25) !important;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.05), rgba(255, 255, 255, 0.05)) !important;
+}
+
+.device-moon-icon {
+  color: #fbbf24;
+  font-size: 18px;
+  margin-left: 4px;
+  animation: twinkle 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.5));
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

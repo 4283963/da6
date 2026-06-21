@@ -56,12 +56,16 @@ type updateScheduleDTO struct {
 }
 
 type CurrentLightStatus struct {
-	IsOn       bool   `json:"is_on"`
-	Brightness int    `json:"brightness"`
-	ScheduleID uint64 `json:"schedule_id,omitempty"`
-	ScheduleName string `json:"schedule_name,omitempty"`
-	NextAction string `json:"next_action"`
-	NextTime   string `json:"next_time"`
+	IsOn              bool   `json:"is_on"`
+	Brightness        int    `json:"brightness"`
+	OriginalBrightness int   `json:"original_brightness,omitempty"`
+	NightMode         bool   `json:"night_mode"`
+	PowerSaving       bool   `json:"power_saving"`
+	ScheduleID        uint64 `json:"schedule_id,omitempty"`
+	ScheduleName      string `json:"schedule_name,omitempty"`
+	NextAction        string `json:"next_action"`
+	NextTime          string `json:"next_time"`
+	CurrentTemp       float64 `json:"current_temp,omitempty"`
 }
 
 func (LightSchedule) TableName() string {

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
+	"aquarium-control/internal/common"
 	"aquarium-control/internal/database"
 	"gorm.io/gorm"
 )
@@ -137,6 +139,7 @@ func (s *OxygenService) DeleteConfig(id uint64) error {
 }
 
 func (s *OxygenService) CalculateMatch(req *matchRequestDTO) (*MatchResult, error) {
+	now := time.Now()
 	lightWattage := req.LightWattage
 	temperature := req.Temperature
 
@@ -146,6 +149,10 @@ func (s *OxygenService) CalculateMatch(req *matchRequestDTO) (*MatchResult, erro
 	if temperature < 0 || temperature > 40 {
 		return nil, errors.New("temperature must be between 0 and 40")
 	}
+
+	isNightMode := common.IsNightModeAt(now)
+	isTempSafe := common.IsTemperatureSafe(temperature)
+	powerSaving := isNightMode && isTempSafe
 
 	var configs []OxygenConfig
 	if err := s.db.Find(&configs).Error; err != nil {
@@ -162,27 +169,43 @@ func (s *OxygenService) CalculateMatch(req *matchRequestDTO) (*MatchResult, erro
 		}
 	}
 
+	var originalLevel int
+	var result *MatchResult
+
 	if matchedConfig == nil {
-		level := s.calculateFallbackLevel(lightWattage, temperature)
-		return &MatchResult{
-			PumpLevel:   level,
+		originalLevel = s.calculateFallbackLevel(lightWattage, temperature)
+		result = &MatchResult{
 			Description: "自动计算",
 			Formula:     fmt.Sprintf("泵档位 = clamp(round((灯光瓦数/100 * 2) + (温度/40 * 3)), 1, 5)"),
 			Reason:      fmt.Sprintf("无匹配配置，使用公式计算：灯光瓦数=%d, 温度=%.1f°C", lightWattage, temperature),
-		}, nil
+		}
+	} else {
+		originalLevel = matchedConfig.PumpLevel
+		reason := fmt.Sprintf("匹配配置[%s]：灯光瓦数 %d 在 [%d-%d] 区间，温度 %.1f°C 在 [%.1f-%.1f]°C 区间",
+			matchedConfig.Description,
+			lightWattage, matchedConfig.MinLightWattage, matchedConfig.MaxLightWattage,
+			temperature, matchedConfig.MinTemperature, matchedConfig.MaxTemperature)
+		result = &MatchResult{
+			Description: matchedConfig.Description,
+			Formula:     "查表匹配",
+			Reason:      reason,
+		}
 	}
 
-	reason := fmt.Sprintf("匹配配置[%s]：灯光瓦数 %d 在 [%d-%d] 区间，温度 %.1f°C 在 [%.1f-%.1f]°C 区间",
-		matchedConfig.Description,
-		lightWattage, matchedConfig.MinLightWattage, matchedConfig.MaxLightWattage,
-		temperature, matchedConfig.MinTemperature, matchedConfig.MaxTemperature)
+	result.OriginalPumpLevel = originalLevel
+	result.NightMode = isNightMode
+	result.PowerSaving = powerSaving
+	result.CurrentTemp = temperature
 
-	return &MatchResult{
-		PumpLevel:   matchedConfig.PumpLevel,
-		Description: matchedConfig.Description,
-		Formula:     "查表匹配",
-		Reason:      reason,
-	}, nil
+	if powerSaving {
+		result.PumpLevel = common.ApplyPowerSavingWithMin(originalLevel, 1)
+		result.Reason = fmt.Sprintf("%s [深夜省电模式已激活] 档位从 %d 档调整为 %d 档",
+			result.Reason, originalLevel, result.PumpLevel)
+	} else {
+		result.PumpLevel = originalLevel
+	}
+
+	return result, nil
 }
 
 func (s *OxygenService) calculateFallbackLevel(lightWattage int, temperature float64) int {

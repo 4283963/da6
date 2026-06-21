@@ -66,10 +66,14 @@ type matchRequestDTO struct {
 }
 
 type MatchResult struct {
-	PumpLevel   int    `json:"pump_level"`
-	Description string `json:"description"`
-	Formula     string `json:"formula"`
-	Reason      string `json:"reason"`
+	PumpLevel        int    `json:"pump_level"`
+	OriginalPumpLevel int   `json:"original_pump_level,omitempty"`
+	Description      string `json:"description"`
+	Formula          string `json:"formula"`
+	Reason           string `json:"reason"`
+	NightMode        bool   `json:"night_mode"`
+	PowerSaving      bool   `json:"power_saving"`
+	CurrentTemp      float64 `json:"current_temp,omitempty"`
 }
 
 func (OxygenConfig) TableName() string {

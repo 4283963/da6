@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"aquarium-control/internal/common"
 	"aquarium-control/internal/database"
 	"gorm.io/gorm"
 )
@@ -118,9 +119,34 @@ func (s *LightService) DeleteSchedule(id uint64) error {
 	return nil
 }
 
+type LatestSensorData struct {
+	Temperature float64 `gorm:"column:temperature"`
+}
+
+func (s *LightService) getLatestTemperature() (float64, error) {
+	var data LatestSensorData
+	result := s.db.Table("sensor_data").Order("recorded_at DESC").Limit(1).Find(&data)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return 25.0, nil
+	}
+	return data.Temperature, nil
+}
+
 func (s *LightService) GetCurrentStatus() (*CurrentLightStatus, error) {
 	now := time.Now()
 	currentTimeStr := now.Format("15:04:05")
+
+	currentTemp, err := s.getLatestTemperature()
+	if err != nil {
+		currentTemp = 25.0
+	}
+
+	isNightMode := common.IsNightModeAt(now)
+	isTempSafe := common.IsTemperatureSafe(currentTemp)
+	powerSaving := isNightMode && isTempSafe
 
 	var schedules []LightSchedule
 	if err := s.db.Where("enabled = ?", true).Order("start_time ASC").Find(&schedules).Error; err != nil {
@@ -128,8 +154,11 @@ func (s *LightService) GetCurrentStatus() (*CurrentLightStatus, error) {
 	}
 
 	status := &CurrentLightStatus{
-		IsOn:       false,
-		Brightness: 0,
+		IsOn:        false,
+		Brightness:  0,
+		NightMode:   isNightMode,
+		PowerSaving: powerSaving,
+		CurrentTemp: currentTemp,
 	}
 
 	sort.Slice(schedules, func(i, j int) bool {
@@ -147,11 +176,18 @@ func (s *LightService) GetCurrentStatus() (*CurrentLightStatus, error) {
 
 	if activeSchedule != nil {
 		status.IsOn = true
-		status.Brightness = activeSchedule.Brightness
+		originalBrightness := activeSchedule.Brightness
+		status.OriginalBrightness = originalBrightness
 		status.ScheduleID = activeSchedule.ID
 		status.ScheduleName = activeSchedule.Name
 		status.NextAction = "关灯"
 		status.NextTime = activeSchedule.EndTime
+
+		if powerSaving {
+			status.Brightness = common.ApplyPowerSavingWithMin(originalBrightness, 0)
+		} else {
+			status.Brightness = originalBrightness
+		}
 	} else {
 		for i := range schedules {
 			sched := &schedules[i]

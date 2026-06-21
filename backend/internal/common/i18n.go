@@ -2,6 +2,7 @@ package common
 
 import (
 	"strings"
+	"time"
 )
 
 var (
@@ -88,6 +89,14 @@ var (
 		"夜间":    {"22:00:00", "06:00:00"},
 		"全天":    {"00:00:00", "23:59:59"},
 	}
+
+	NightModeStartHour = 0
+	NightModeEndHour   = 5
+
+	SafeTempMin = 22.0
+	SafeTempMax = 28.0
+
+	PowerSavingFactor = 0.5
 )
 
 func NormalizeDeviceType(input string) string {
@@ -174,4 +183,39 @@ func ParseTimeRange(input string) (string, string, bool) {
 		return val[0], val[1], true
 	}
 	return "", "", false
+}
+
+func IsNightMode() bool {
+	now := time.Now()
+	hour := now.Hour()
+	return hour >= NightModeStartHour && hour < NightModeEndHour
+}
+
+func IsNightModeAt(t time.Time) bool {
+	hour := t.Hour()
+	return hour >= NightModeStartHour && hour < NightModeEndHour
+}
+
+func IsTemperatureSafe(temperature float64) bool {
+	return temperature >= SafeTempMin && temperature <= SafeTempMax
+}
+
+func ShouldEnablePowerSaving(temperature float64) bool {
+	return IsNightMode() && IsTemperatureSafe(temperature)
+}
+
+func ShouldEnablePowerSavingAt(t time.Time, temperature float64) bool {
+	return IsNightModeAt(t) && IsTemperatureSafe(temperature)
+}
+
+func ApplyPowerSaving(value int) int {
+	return int(float64(value) * PowerSavingFactor)
+}
+
+func ApplyPowerSavingWithMin(value int, minValue int) int {
+	result := int(float64(value) * PowerSavingFactor)
+	if result < minValue {
+		return minValue
+	}
+	return result
 }
