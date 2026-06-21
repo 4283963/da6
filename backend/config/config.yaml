@@ -1,0 +1,16 @@
+server:
+  port: 8080
+  mode: debug
+
+database:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: password
+  dbname: aquarium_control
+  charset: utf8mb4
+  parse_time: true
+  loc: Local
+  max_open_conns: 100
+  max_idle_conns: 10
+  conn_max_lifetime: 3600
